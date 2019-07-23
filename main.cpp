@@ -292,7 +292,7 @@ int main()
 	system("pause");
 	GetFilesName(nega_strength_save_xml_dir, pos_filename);
 	for (int i = 0; i < pos_filename.size(); i++){
-		pos_xml_file_path = pos_xml_dir + '/' + pos_filename[i] + ".xml";
+		pos_xml_file_path = nega_strength_save_xml_dir + '/' + pos_filename[i];
 		pos_xml_file_path.copy(pos_xml, pos_xml_file_path.size(), 0);
 		*(pos_xml + pos_xml_file_path.size()) = '\0';
 		pos_xml_p = pos_xml;
@@ -302,7 +302,7 @@ int main()
 
 	GetFilesName(nega_strength_save_pic_dir, pos_filename);
 	for (int i = 0; i < pos_filename.size(); i++){
-		pos_xml_file_path = pos_xml_dir + '/' + pos_filename[i] + ".jpg";
+		pos_xml_file_path = nega_strength_save_pic_dir + '/' + pos_filename[i];
 		pos_xml_file_path.copy(pos_xml, pos_xml_file_path.size(), 0);
 		*(pos_xml + pos_xml_file_path.size()) = '\0';
 		pos_xml_p = pos_xml;
@@ -351,7 +351,7 @@ int main()
 		pos_pic_p = pos_pic;
 		pos_img = imread(pos_pic_p);
 		if (pos_img.empty()){
-			cout << "ERROR: read image error, check the path" << endl;
+			cout << " ERROR: read image error, check the path" << endl;
 			continue;
 		}
 
@@ -359,7 +359,7 @@ int main()
 
 		if (positive_rect.xmin - expand_width - 2 < 0 || positive_rect.ymin - expand_height - 2 < 0 ||
 			positive_rect.xmax + expand_width + 2 > SIZE_width || positive_rect.ymax + expand_height + 2 > SIZE_height){
-			cout << pos_filename[posi_pos] << "ERROR: " << "out of array,skip this pos sample" << endl;
+			cout << pos_filename[posi_pos] << " ERROR: " << "out of array,skip this pos sample" << endl;
 			continue;
 		}
 		else{
@@ -379,7 +379,7 @@ int main()
 			GetXmlRect(nega_xml_p, negative_rect);
 			GetPSpace(negative_rect, space_rect);
 			if (space_rect.xmin < 0 || space_rect.ymin < 0 || space_rect.xmin + pos_imgROI.cols > SIZE_width || space_rect.ymin + pos_imgROI.rows > SIZE_height){
-				cout << nega_filename[i] << "ERROR: " << "out of array,skip this negative sample" << endl;
+				cout << nega_filename[i] << " ERROR: " << "out of array,skip this negative sample" << endl;
 				continue;
 			}
 			else{
@@ -394,17 +394,17 @@ int main()
 				center_width = (space_rect.xmin + space_rect.xmax) / 2 - (space_rect.xmin + space_rect.xmin + pos_imgROI.cols) / 2;
 				center_height = (space_rect.ymin + space_rect.ymax) / 2 - (space_rect.ymin + space_rect.ymin + pos_imgROI.rows) / 2;
 				pos_imgROI.copyTo(nega_img(Rect(space_rect.xmin + center_width, space_rect.ymin + center_height, pos_imgROI.cols, pos_imgROI.rows)));
-				nega_pic_file_path = nega_strength_save_pic_dir + '/' + nega_filename[i] + ".jpg";
+				nega_pic_file_path = nega_strength_save_pic_dir + '/' + nega_filename[i] + "-negpos" + ".jpg";
 				imwrite(nega_pic_file_path, nega_img);
 
 				/////////////////////////提取xml完整名，写入xml需要/////////////////////////////////
-				nega_xml_file_path = nega_strength_save_xml_dir + '/' + nega_filename[i] + ".xml";
+				nega_xml_file_path = nega_strength_save_xml_dir + '/' + nega_filename[i] + "-negpos" + ".xml";
 				nega_xml_file_path.copy(nega_xml, nega_xml_file_path.size(), 0);
 				*(nega_xml + nega_xml_file_path.size()) = '\0';
 				nega_xml_p = nega_xml;
 
 				/////////////////////////提取图片完整名，写入xml需要//////////////////////////////
-				nega_pic_file_path = nega_filename[i] + ".jpg";
+				nega_pic_file_path = nega_filename[i] + "-negpos" + ".jpg";
 				nega_pic_file_path.copy(nega_pic, nega_pic_file_path.size(), 0);
 				*(nega_pic + nega_pic_file_path.size()) = '\0';
 				nega_pic_p = nega_pic;
