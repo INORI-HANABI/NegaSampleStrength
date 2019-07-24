@@ -11,6 +11,10 @@
 //v1.2更新说明：
 //1.增加了扩大系数和缩小系数。
 //2.P图位置更新为所选空余空间的正中间。
+//
+//v1.3更新说明：
+//1.修复了bug，保证读取的xml与读取的图片一一对应。
+//2.添加了打印信息，便于查看文件处理情况。
 
 #include <opencv2/core/core.hpp>    
 #include <opencv2/highgui/highgui.hpp>    
@@ -24,6 +28,7 @@
 #define N4Str2Char 200
 #define SIZE_width 640
 #define SIZE_height 480
+#define SIZE_PIC ".jpg"
 
 using namespace std;
 using namespace cv;
@@ -247,11 +252,12 @@ int main()
 {
 	vector<string> nega_filename;
 	vector<string> pos_filename;
-	size_t pos;
-	size_t posi_pos = 0;
+	size_t pos;							//用于提取文件名的位置
+	size_t posi_pos = 0;				//用于在正样本文件夹中提取正样本的次序
 
-	double expand_ratio = 0.2;
-	double reduce_ratio = 0.2;
+	double expand_ratio = 0.2;			//扩大系数
+	double reduce_extra_ratio = 0.8;	//额外的缩小系数
+	double reduce_basic_ratio;			//基础缩小系数
 	int expand_width;
 	int expand_height;
 	bool is_reduced;
@@ -265,12 +271,12 @@ int main()
 	myrect positive_rect;
 	myrect space_rect;
 
-	string nega_strength_save_xml_dir = "20190723-add-neg-jpg-test/20190524-shenlong-003-student-bus-out312-negpos/Annotations";
-	string nega_strength_save_pic_dir = "20190723-add-neg-jpg-test/20190524-shenlong-003-student-bus-out312-negpos/JPEGImages";
-	string neag_xml_dir = "20190723-add-neg-jpg-test/20190524-shenlong-003-student-bus-out312-neg/Annotations";
-	string nega_pic_dir = "20190723-add-neg-jpg-test/20190524-shenlong-003-student-bus-out312-neg/JPEGImages";
-	string pos_xml_dir = "20190723-add-neg-jpg-test/20190524-shenlong-003-student-bus-out312-pos/Annotations";
-	string pos_pic_dir = "20190723-add-neg-jpg-test/20190524-shenlong-003-student-bus-out312-pos/JPEGImages";
+	string nega_strength_save_xml_dir = "C:/Users/包尔权/Desktop/negpos/20190524-shenlong-003-student-bus-out325-negpos/Annotations";
+	string nega_strength_save_pic_dir = "C:/Users/包尔权/Desktop/negpos/20190524-shenlong-003-student-bus-out325-negpos/JPEGImages";
+	string neag_xml_dir = "C:/Users/包尔权/Desktop/auto-label-output-20190723-2-nega/20190524-shenlong-003-student-bus-out325/Annotations";
+	string nega_pic_dir = "C:/Users/包尔权/Desktop/auto-label-output-20190723-2-nega/20190524-shenlong-003-student-bus-out325/JPEGImages";
+	string pos_xml_dir = "day-pos/Data-20190618-shenlong-oepc-640-480-5734-pos/Annotations";
+	string pos_pic_dir = "day-pos/Data-20190618-shenlong-oepc-640-480-5734-pos/JPEGImages";
 
 	string nega_xml_file_path;
 	string nega_pic_file_path;
@@ -327,39 +333,36 @@ int main()
 
 	for (int i = 0; i < nega_filename.size(); i++){
 
-		if (posi_pos > pos_filename.size() - 1){
-			posi_pos = 0;
-		}
-
 		is_reduced = false;
 
-		////////////////////////////读取正样本xml文件，并获取对应box//////////////////////
+		///////////////////////////////读取xml文件，并获取对应box//////////////////////
 		pos_xml_file_path = pos_xml_dir + '/' + pos_filename[posi_pos] + ".xml";
 		pos_xml_file_path.copy(pos_xml, pos_xml_file_path.size(), 0);
 		*(pos_xml + pos_xml_file_path.size()) = '\0';
 		pos_xml_p = pos_xml;
 
 		GetXmlRect(pos_xml_p, positive_rect);
-		/////////////////////////////计算扩大后长和宽的增加值///////////////////////////////
+		/////////////////////////////计算正样本扩大后长和宽的增加值///////////////////////////////
 		expand_width = int((positive_rect.xmax - positive_rect.xmin)*expand_ratio / 2);
 		expand_height = int((positive_rect.ymax - positive_rect.ymin)*expand_ratio / 2);
 
-		/////////////////////////////读取正样本图片///////////////////////////////////////
-		pos_pic_file_path = pos_pic_dir + '/' + pos_filename[posi_pos] + ".jpg";
-		pos_pic_file_path.copy(pos_pic, pos_pic_file_path.size(), 0);
-		*(pos_pic + pos_pic_file_path.size()) = '\0';
-		pos_pic_p = pos_pic;
-		pos_img = imread(pos_pic_p);
-		if (pos_img.empty()){
-			cout << " ERROR: read image error, check the path" << endl;
-			continue;
-		}
-
-		posi_pos++;
+		/////////////////////////////读取xml文件对应的唯一正样本图片//////////////////////////////////////////
+		do{
+			pos_pic_file_path = pos_pic_dir + '/' + pos_filename[posi_pos] + SIZE_PIC;
+			pos_pic_file_path.copy(pos_pic, pos_pic_file_path.size(), 0);
+			*(pos_pic + pos_pic_file_path.size()) = '\0';
+			pos_pic_p = pos_pic;
+			pos_img = imread(pos_pic_p);
+			posi_pos++;
+			if (posi_pos == pos_filename.size() - 1){
+				posi_pos = 0;
+			}
+			cout << "FINDING PICTURE......" << endl;
+		} while (pos_img.empty() == true);
 
 		if (positive_rect.xmin - expand_width - 2 < 0 || positive_rect.ymin - expand_height - 2 < 0 ||
 			positive_rect.xmax + expand_width + 2 > SIZE_width || positive_rect.ymax + expand_height + 2 > SIZE_height){
-			cout << pos_filename[posi_pos] << " ERROR: " << "out of array,skip this pos sample" << endl;
+			cout << pos_filename[posi_pos] << endl << "ERROR: " << "the expand_pos is out of array, SKIP" << endl;
 			continue;
 		}
 		else{
@@ -372,20 +375,25 @@ int main()
 		nega_xml_file_path.copy(nega_xml, nega_xml_file_path.size(), 0);
 		*(nega_xml + nega_xml_file_path.size()) = '\0';
 		nega_xml_p = nega_xml;
+
 		/////////////////////////读取负样本图片/////////////////////////////////
-		nega_pic_file_path = nega_pic_dir + '/' + nega_filename[i] + ".jpg";
+		nega_pic_file_path = nega_pic_dir + '/' + nega_filename[i] + SIZE_PIC;
+		nega_img = imread(nega_pic_file_path);
+		if (nega_img.empty() == true){
+			cout << nega_pic_file_path << endl << "ERROR: read the nega image error, SKIP" << endl;
+			continue;
+		}
 		if (CheckOnly(nega_xml_p) == true){
-			nega_img = imread(nega_pic_file_path);
 			GetXmlRect(nega_xml_p, negative_rect);
 			GetPSpace(negative_rect, space_rect);
 			if (space_rect.xmin < 0 || space_rect.ymin < 0 || space_rect.xmin + pos_imgROI.cols > SIZE_width || space_rect.ymin + pos_imgROI.rows > SIZE_height){
-				cout << nega_filename[i] << " ERROR: " << "out of array,skip this negative sample" << endl;
+				cout << nega_filename[i] << endl << "ERROR: " << "out of array, SKIP" << endl;
 				continue;
 			}
 			else{
 				if (pos_imgROI.cols > (space_rect.xmax - space_rect.xmin) || pos_imgROI.rows > (space_rect.ymax - space_rect.ymin)){
-					reduce_ratio = max(1.0 * pos_imgROI.cols / (space_rect.xmax - space_rect.xmin), 1.0*pos_imgROI.rows / (space_rect.ymax - space_rect.ymin));
-					Size ResImgSiz = Size(pos_imgROI.cols / reduce_ratio, pos_imgROI.rows / reduce_ratio);
+					reduce_basic_ratio = max(1.0 * pos_imgROI.cols / (space_rect.xmax - space_rect.xmin), 1.0*pos_imgROI.rows / (space_rect.ymax - space_rect.ymin));
+					Size ResImgSiz = Size(pos_imgROI.cols / reduce_basic_ratio*reduce_extra_ratio, pos_imgROI.rows / reduce_basic_ratio*reduce_extra_ratio);
 					resize(pos_imgROI, pos_imgROI, ResImgSiz, CV_INTER_CUBIC);
 					is_reduced = true;
 				}
@@ -393,8 +401,10 @@ int main()
 				/////////////////////////PS并存输出图片至所选空区域的正中间/////////////////////////////////
 				center_width = (space_rect.xmin + space_rect.xmax) / 2 - (space_rect.xmin + space_rect.xmin + pos_imgROI.cols) / 2;
 				center_height = (space_rect.ymin + space_rect.ymax) / 2 - (space_rect.ymin + space_rect.ymin + pos_imgROI.rows) / 2;
+
+
 				pos_imgROI.copyTo(nega_img(Rect(space_rect.xmin + center_width, space_rect.ymin + center_height, pos_imgROI.cols, pos_imgROI.rows)));
-				nega_pic_file_path = nega_strength_save_pic_dir + '/' + nega_filename[i] + "-negpos" + ".jpg";
+				nega_pic_file_path = nega_strength_save_pic_dir + '/' + nega_filename[i] + "-negpos" + SIZE_PIC;
 				imwrite(nega_pic_file_path, nega_img);
 
 				/////////////////////////提取xml完整名，写入xml需要/////////////////////////////////
@@ -404,7 +414,7 @@ int main()
 				nega_xml_p = nega_xml;
 
 				/////////////////////////提取图片完整名，写入xml需要//////////////////////////////
-				nega_pic_file_path = nega_filename[i] + "-negpos" + ".jpg";
+				nega_pic_file_path = nega_filename[i] + "-negpos" + SIZE_PIC;
 				nega_pic_file_path.copy(nega_pic, nega_pic_file_path.size(), 0);
 				*(nega_pic + nega_pic_file_path.size()) = '\0';
 				nega_pic_p = nega_pic;
@@ -417,13 +427,13 @@ int main()
 				string x_max;
 				string y_max;
 				if (is_reduced){
-					ss1 << (space_rect.xmin + center_width + expand_width / reduce_ratio);
+					ss1 << (space_rect.xmin + center_width + expand_width / reduce_basic_ratio * reduce_extra_ratio);
 					x_min = ss1.str();
-					ss2 << (space_rect.ymin + center_height + expand_height / reduce_ratio);
+					ss2 << (space_rect.ymin + center_height + expand_height / reduce_basic_ratio * reduce_extra_ratio);
 					y_min = ss2.str();
-					ss3 << (space_rect.xmin + center_width + pos_imgROI.cols - expand_width / reduce_ratio);
+					ss3 << (space_rect.xmin + center_width + pos_imgROI.cols - expand_width / reduce_basic_ratio * reduce_extra_ratio);
 					x_max = ss3.str();
-					ss4 << (space_rect.ymin + center_height + pos_imgROI.rows - expand_height / reduce_ratio);
+					ss4 << (space_rect.ymin + center_height + pos_imgROI.rows - expand_height / reduce_basic_ratio * reduce_extra_ratio);
 					y_max = ss4.str();
 				}
 				else{
@@ -437,10 +447,11 @@ int main()
 					y_max = ss4.str();
 				}
 
-
 				//////////////////////////写入xml///////////////////////////////
 				createXML(nega_xml_p, nega_pic_p, x_min, y_min, x_max, y_max);
-				cout << nega_filename[i] << " has been finished" << endl;
+				cout << nega_filename[i] << endl << "has been finished" << endl;
+
+
 
 			}
 		}
@@ -452,6 +463,6 @@ int main()
 	}
 
 
-	system("pause");
+	//system("pause");
 	return 0;
 }
