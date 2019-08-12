@@ -24,6 +24,7 @@
 #include <io.h>
 #include <string>
 #include <cstdio>
+#include <direct.h>
 #include "tinyxml2.h"
 #define N4Str2Char 200
 #define SIZE_width 640
@@ -69,10 +70,10 @@ bool CheckOnly(char* xmlPath){
 		num++;
 		object = object->NextSiblingElement();
 	}
-	if (num > 1)
-		return false;
-	else
+	if (num == 1)
 		return true;
+	else
+		return false;
 }
 
 
@@ -94,7 +95,7 @@ void SetValue4Rect(myrect& rect, int xmin, int ymin, int xmax, int ymax){
 
 
 //////////////////////////////////从xml文件中提取框信息////////////////////////
-void GetXmlRect(char* xmlPath, myrect& rect){
+void GetXmlRect(char* xmlPath,myrect& rect){
 	XMLDocument doc;
 	doc.LoadFile(xmlPath);
 	XMLElement *annotations = doc.RootElement();
@@ -247,14 +248,36 @@ void GetFilesName(string path, vector<string>& files)
 }
 
 
+void GetDirsName(string path, vector<string>& files)
+{
+	//文件句柄
+	intptr_t   hFile = 0;
+	//文件信息
+	struct _finddata_t fileinfo;
+	string p;
+	if ((hFile = _findfirst(p.assign(path).append("/*").c_str(), &fileinfo)) != -1)
+	{
+		do
+		{
+			//如果是目录,加入
+			if ((fileinfo.attrib &  _A_SUBDIR))
+			{
+				files.push_back((fileinfo.name));
+			}
+		} while (_findnext(hFile, &fileinfo) == 0);
+		_findclose(hFile);
+	}
+}
+
 
 int main()
 {
 	vector<string> nega_filename;
 	vector<string> pos_filename;
+	vector<string> dirname;
 	size_t pos;							//用于提取文件名的位置
 	size_t posi_pos = 0;				//用于在正样本文件夹中提取正样本的次序
-
+	
 	double expand_ratio = 0.2;			//扩大系数
 	double reduce_extra_ratio = 0.8;	//额外的缩小系数
 	double reduce_basic_ratio;			//基础缩小系数
@@ -269,19 +292,26 @@ int main()
 	Mat pos_imgROI;
 	myrect negative_rect;
 	myrect positive_rect;
-	myrect space_rect;
+	myrect space_rect;	
 
-	string nega_strength_save_xml_dir = "C:/Users/包尔权/Desktop/negpos/20190524-shenlong-003-student-bus-out325-negpos/Annotations";
-	string nega_strength_save_pic_dir = "C:/Users/包尔权/Desktop/negpos/20190524-shenlong-003-student-bus-out325-negpos/JPEGImages";
-	string neag_xml_dir = "C:/Users/包尔权/Desktop/auto-label-output-20190723-2-nega/20190524-shenlong-003-student-bus-out325/Annotations";
-	string nega_pic_dir = "C:/Users/包尔权/Desktop/auto-label-output-20190723-2-nega/20190524-shenlong-003-student-bus-out325/JPEGImages";
+	string nega_strength_dir = "C://Users//包尔权//Desktop//test//output";
+	string nega_dir = "C://Users//包尔权//Desktop//test//input";
 	string pos_xml_dir = "day-pos/Data-20190618-shenlong-oepc-640-480-5734-pos/Annotations";
 	string pos_pic_dir = "day-pos/Data-20190618-shenlong-oepc-640-480-5734-pos/JPEGImages";
+	string nega_strength_save_xml_dir;
+	string nega_strength_save_pic_dir;
+	string neag_xml_dir;
+	string nega_pic_dir;
 
+
+	string nega_strength_dir_path;
+	string nega_dir_path;
 	string nega_xml_file_path;
-	string nega_pic_file_path;
+	string nega_pic_file_path;  
 	string pos_xml_file_path;
 	string pos_pic_file_path;
+
+	string temp_path;
 
 	char nega_xml[N4Str2Char];
 	char nega_pic[N4Str2Char];
@@ -293,176 +323,223 @@ int main()
 	char* pos_xml_p;
 	char* pos_pic_p;
 
-	//////每次确保对应保存目录下图片和xml文件夹都是清空的，如果未清空则先进行清理////////////////
-	cout << "将要清理对应保存目录之前的内容" << endl;
-	system("pause");
-	GetFilesName(nega_strength_save_xml_dir, pos_filename);
-	for (int i = 0; i < pos_filename.size(); i++){
-		pos_xml_file_path = nega_strength_save_xml_dir + '/' + pos_filename[i];
-		pos_xml_file_path.copy(pos_xml, pos_xml_file_path.size(), 0);
-		*(pos_xml + pos_xml_file_path.size()) = '\0';
-		pos_xml_p = pos_xml;
-		remove(pos_xml_p);
-	}
+	dirname.clear();
 	pos_filename.clear();
+	nega_filename.clear();
 
-	GetFilesName(nega_strength_save_pic_dir, pos_filename);
-	for (int i = 0; i < pos_filename.size(); i++){
-		pos_xml_file_path = nega_strength_save_pic_dir + '/' + pos_filename[i];
-		pos_xml_file_path.copy(pos_xml, pos_xml_file_path.size(), 0);
-		*(pos_xml + pos_xml_file_path.size()) = '\0';
-		pos_xml_p = pos_xml;
-		remove(pos_xml_p);
-	}
-	pos_filename.clear();
 
-	cout << "ALL CLEAR!" << endl;
-
-	///////////////////////////清理完毕，开始读取要用的正样本与负样本名字////////////////////////////
-	GetFilesName(neag_xml_dir, nega_filename);
-	for (int i = 0; i < nega_filename.size(); i++){
-		pos = nega_filename[i].find(".");
-		nega_filename[i] = nega_filename[i].substr(0, pos);
-	}
-
-	GetFilesName(pos_xml_dir, pos_filename);
-	for (int i = 0; i < pos_filename.size(); i++){
-		pos = pos_filename[i].find(".");
-		pos_filename[i] = pos_filename[i].substr(0, pos);
-	}
-
-	for (int i = 0; i < nega_filename.size(); i++){
-
-		is_reduced = false;
-
-		///////////////////////////////读取xml文件，并获取对应box//////////////////////
-		pos_xml_file_path = pos_xml_dir + '/' + pos_filename[posi_pos] + ".xml";
-		pos_xml_file_path.copy(pos_xml, pos_xml_file_path.size(), 0);
-		*(pos_xml + pos_xml_file_path.size()) = '\0';
-		pos_xml_p = pos_xml;
-
-		GetXmlRect(pos_xml_p, positive_rect);
-		/////////////////////////////计算正样本扩大后长和宽的增加值///////////////////////////////
-		expand_width = int((positive_rect.xmax - positive_rect.xmin)*expand_ratio / 2);
-		expand_height = int((positive_rect.ymax - positive_rect.ymin)*expand_ratio / 2);
-
-		/////////////////////////////读取xml文件对应的唯一正样本图片//////////////////////////////////////////
-		do{
-			pos_pic_file_path = pos_pic_dir + '/' + pos_filename[posi_pos] + SIZE_PIC;
-			pos_pic_file_path.copy(pos_pic, pos_pic_file_path.size(), 0);
-			*(pos_pic + pos_pic_file_path.size()) = '\0';
-			pos_pic_p = pos_pic;
-			pos_img = imread(pos_pic_p);
-			posi_pos++;
-			if (posi_pos == pos_filename.size() - 1){
-				posi_pos = 0;
+	GetDirsName(nega_dir, dirname);
+	for (int index = 2; index < dirname.size(); index++){
+		nega_strength_dir_path = nega_strength_dir + '/' + dirname[index];
+		if (0 != access(nega_strength_dir_path.c_str(), 0))
+		{
+			if (mkdir(nega_strength_dir_path.c_str()) == 0){
+				cout << nega_strength_dir_path << "---has been created!" << endl;
+				temp_path = nega_strength_dir_path + "/Annotations";
+				mkdir(temp_path.c_str());
+				temp_path = nega_strength_dir_path + "/JPEGImages";
+				mkdir(temp_path.c_str());
 			}
-			cout << "FINDING PICTURE......" << endl;
-		} while (pos_img.empty() == true);
-
-		if (positive_rect.xmin - expand_width - 2 < 0 || positive_rect.ymin - expand_height - 2 < 0 ||
-			positive_rect.xmax + expand_width + 2 > SIZE_width || positive_rect.ymax + expand_height + 2 > SIZE_height){
-			cout << pos_filename[posi_pos] << endl << "ERROR: " << "the expand_pos is out of array, SKIP" << endl;
-			continue;
 		}
 		else{
-			pos_imgROI = pos_img(Rect(positive_rect.xmin - expand_width, positive_rect.ymin - expand_height,
-				positive_rect.xmax - positive_rect.xmin + expand_width * 2, positive_rect.ymax - positive_rect.ymin + expand_height * 2));
+			cout << nega_strength_dir_path << "---exists!" << endl;
+		}
+	}
+	
+	cout <<"===================START========================" << endl;
+
+
+	for (int index = 2; index < dirname.size(); index++){
+		nega_strength_save_xml_dir = nega_strength_dir + '/' + dirname[index] + '/' + "Annotations";
+		nega_strength_save_pic_dir = nega_strength_dir + '/' + dirname[index] + '/' + "JPEGImages";
+		neag_xml_dir = nega_dir + '/' + dirname[index] + '/' + "Annotations";
+		nega_pic_dir = nega_dir + '/' + dirname[index] + '/' + "JPEGImages";
+		cout << nega_strength_save_xml_dir << endl;
+		cout << nega_strength_save_pic_dir << endl;
+		cout << neag_xml_dir << endl;
+		cout << nega_pic_dir << endl;
+
+
+		
+		//////每次确保对应保存目录下图片和xml文件夹都是清空的，如果未清空则先进行清理////////////////
+		cout << "将要清理对应保存目录之前的内容" << endl;
+		_sleep(1000);
+		GetFilesName(nega_strength_save_xml_dir, pos_filename);
+		for (int i = 0; i < pos_filename.size(); i++){
+			pos_xml_file_path = nega_strength_save_xml_dir + '/' + pos_filename[i];
+			pos_xml_file_path.copy(pos_xml, pos_xml_file_path.size(), 0);
+			*(pos_xml + pos_xml_file_path.size()) = '\0';
+			pos_xml_p = pos_xml;
+			remove(pos_xml_p);
+		}
+		pos_filename.clear();
+
+		GetFilesName(nega_strength_save_pic_dir, pos_filename);
+		for (int i = 0; i < pos_filename.size(); i++){
+			pos_xml_file_path = nega_strength_save_pic_dir + '/' + pos_filename[i];
+			pos_xml_file_path.copy(pos_xml, pos_xml_file_path.size(), 0);
+			*(pos_xml + pos_xml_file_path.size()) = '\0';
+			pos_xml_p = pos_xml;
+			remove(pos_xml_p);
+		}
+		pos_filename.clear();
+
+		cout << "ALL CLEAR!" << endl;
+
+		///////////////////////////清理完毕，开始读取要用的正样本与负样本名字////////////////////////////
+		GetFilesName(neag_xml_dir, nega_filename);
+		for (int i = 0; i < nega_filename.size(); i++){
+			pos = nega_filename[i].find(".");
+			nega_filename[i] = nega_filename[i].substr(0, pos);
+		}
+		GetFilesName(pos_xml_dir, pos_filename);
+		for (int i = 0; i < pos_filename.size(); i++){
+			pos = pos_filename[i].find(".");
+			pos_filename[i] = pos_filename[i].substr(0, pos);
 		}
 
-		/////////////////////////读取负样本xml文件/////////////////////////////////
-		nega_xml_file_path = neag_xml_dir + '/' + nega_filename[i] + ".xml";
-		nega_xml_file_path.copy(nega_xml, nega_xml_file_path.size(), 0);
-		*(nega_xml + nega_xml_file_path.size()) = '\0';
-		nega_xml_p = nega_xml;
+		for (int i = 0; i < nega_filename.size(); i++){
 
-		/////////////////////////读取负样本图片/////////////////////////////////
-		nega_pic_file_path = nega_pic_dir + '/' + nega_filename[i] + SIZE_PIC;
-		nega_img = imread(nega_pic_file_path);
-		if (nega_img.empty() == true){
-			cout << nega_pic_file_path << endl << "ERROR: read the nega image error, SKIP" << endl;
-			continue;
-		}
-		if (CheckOnly(nega_xml_p) == true){
-			GetXmlRect(nega_xml_p, negative_rect);
-			GetPSpace(negative_rect, space_rect);
-			if (space_rect.xmin < 0 || space_rect.ymin < 0 || space_rect.xmin + pos_imgROI.cols > SIZE_width || space_rect.ymin + pos_imgROI.rows > SIZE_height){
-				cout << nega_filename[i] << endl << "ERROR: " << "out of array, SKIP" << endl;
+			is_reduced = false;
+
+			///////////////////////////////读取xml文件，并获取对应box//////////////////////
+			pos_xml_file_path = pos_xml_dir + '/' + pos_filename[posi_pos] + ".xml";
+			pos_xml_file_path.copy(pos_xml, pos_xml_file_path.size(), 0);
+			*(pos_xml + pos_xml_file_path.size()) = '\0';
+			pos_xml_p = pos_xml;
+
+			GetXmlRect(pos_xml_p, positive_rect);
+			/////////////////////////////计算正样本扩大后长和宽的增加值///////////////////////////////
+			expand_width = int((positive_rect.xmax - positive_rect.xmin)*expand_ratio / 2);
+			expand_height = int((positive_rect.ymax - positive_rect.ymin)*expand_ratio / 2);
+
+			/////////////////////////////读取xml文件对应的唯一正样本图片//////////////////////////////////////////
+			cout << "FINDING POS-PICTURE......" << endl;
+			do{
+				pos_pic_file_path = pos_pic_dir + '/' + pos_filename[posi_pos] + SIZE_PIC;
+				pos_pic_file_path.copy(pos_pic, pos_pic_file_path.size(), 0);
+				*(pos_pic + pos_pic_file_path.size()) = '\0';
+				pos_pic_p = pos_pic;
+				pos_img = imread(pos_pic_p);
+				posi_pos++;
+				if (posi_pos == pos_filename.size() - 1){
+					posi_pos = 0;
+				}
+			} while (pos_img.empty() == true);
+
+			cout << pos_filename[posi_pos] << "---POS-PICTURE GOT" << endl;
+
+			if (positive_rect.xmin - expand_width - 2 < 0 || positive_rect.ymin - expand_height - 2 < 0 ||
+				positive_rect.xmax + expand_width + 2 > SIZE_width || positive_rect.ymax + expand_height + 2 > SIZE_height){
+				cout << pos_filename[posi_pos] << "---ERROR: the expand_pos is out of array, SKIP" << endl;
 				continue;
 			}
 			else{
-				if (pos_imgROI.cols > (space_rect.xmax - space_rect.xmin) || pos_imgROI.rows > (space_rect.ymax - space_rect.ymin)){
-					reduce_basic_ratio = max(1.0 * pos_imgROI.cols / (space_rect.xmax - space_rect.xmin), 1.0*pos_imgROI.rows / (space_rect.ymax - space_rect.ymin));
-					Size ResImgSiz = Size(pos_imgROI.cols / reduce_basic_ratio*reduce_extra_ratio, pos_imgROI.rows / reduce_basic_ratio*reduce_extra_ratio);
-					resize(pos_imgROI, pos_imgROI, ResImgSiz, CV_INTER_CUBIC);
-					is_reduced = true;
+				pos_imgROI = pos_img(Rect(positive_rect.xmin - expand_width, positive_rect.ymin - expand_height,
+				positive_rect.xmax - positive_rect.xmin + expand_width * 2, positive_rect.ymax - positive_rect.ymin + expand_height * 2));
+			}
+
+			/////////////////////////读取负样本xml文件/////////////////////////////////
+			nega_xml_file_path = neag_xml_dir + '/' + nega_filename[i] + ".xml";
+			nega_xml_file_path.copy(nega_xml, nega_xml_file_path.size(), 0);
+			*(nega_xml + nega_xml_file_path.size()) = '\0';
+			nega_xml_p = nega_xml;
+
+			/////////////////////////读取负样本图片/////////////////////////////////
+			nega_pic_file_path = nega_pic_dir + '/' + nega_filename[i] + SIZE_PIC;
+			nega_img = imread(nega_pic_file_path);
+			if (nega_img.empty() == true){
+				cout << nega_pic_file_path <<"---ERROR: read the nega image error, SKIP" << endl;
+				continue;
+			}
+			if (CheckOnly(nega_xml_p) == true){
+				GetXmlRect(nega_xml_p, negative_rect);
+				GetPSpace(negative_rect, space_rect);
+				if (space_rect.xmin < 0 || space_rect.ymin < 0 ||
+					space_rect.xmin + pos_imgROI.cols > SIZE_width || space_rect.ymin + pos_imgROI.rows > SIZE_height){
+					cout << nega_filename[i] <<"---ERROR: " << "copy area is out of array, SKIP" << endl;
+					continue;
 				}
-
-				/////////////////////////PS并存输出图片至所选空区域的正中间/////////////////////////////////
-				center_width = (space_rect.xmin + space_rect.xmax) / 2 - (space_rect.xmin + space_rect.xmin + pos_imgROI.cols) / 2;
-				center_height = (space_rect.ymin + space_rect.ymax) / 2 - (space_rect.ymin + space_rect.ymin + pos_imgROI.rows) / 2;
-
-
-				pos_imgROI.copyTo(nega_img(Rect(space_rect.xmin + center_width, space_rect.ymin + center_height, pos_imgROI.cols, pos_imgROI.rows)));
-				nega_pic_file_path = nega_strength_save_pic_dir + '/' + nega_filename[i] + "-negpos" + SIZE_PIC;
-				imwrite(nega_pic_file_path, nega_img);
-
-				/////////////////////////提取xml完整名，写入xml需要/////////////////////////////////
-				nega_xml_file_path = nega_strength_save_xml_dir + '/' + nega_filename[i] + "-negpos" + ".xml";
-				nega_xml_file_path.copy(nega_xml, nega_xml_file_path.size(), 0);
-				*(nega_xml + nega_xml_file_path.size()) = '\0';
-				nega_xml_p = nega_xml;
-
-				/////////////////////////提取图片完整名，写入xml需要//////////////////////////////
-				nega_pic_file_path = nega_filename[i] + "-negpos" + SIZE_PIC;
-				nega_pic_file_path.copy(nega_pic, nega_pic_file_path.size(), 0);
-				*(nega_pic + nega_pic_file_path.size()) = '\0';
-				nega_pic_p = nega_pic;
-
-
-				//////////////////////////将坐标从int类型转化为string类型，写入xml需要///////////////////////////////
-				stringstream ss1, ss2, ss3, ss4;
-				string x_min;
-				string y_min;
-				string x_max;
-				string y_max;
-				if (is_reduced){
-					ss1 << (space_rect.xmin + center_width + expand_width / reduce_basic_ratio * reduce_extra_ratio);
-					x_min = ss1.str();
-					ss2 << (space_rect.ymin + center_height + expand_height / reduce_basic_ratio * reduce_extra_ratio);
-					y_min = ss2.str();
-					ss3 << (space_rect.xmin + center_width + pos_imgROI.cols - expand_width / reduce_basic_ratio * reduce_extra_ratio);
-					x_max = ss3.str();
-					ss4 << (space_rect.ymin + center_height + pos_imgROI.rows - expand_height / reduce_basic_ratio * reduce_extra_ratio);
-					y_max = ss4.str();
+				if (space_rect.xmax > SIZE_width){
+					space_rect.xmax = SIZE_width;
+				}
+				if (space_rect.ymax > SIZE_height){
+					space_rect.ymax = SIZE_height;
 				}
 				else{
-					ss1 << (space_rect.xmin + center_width + expand_width);
-					x_min = ss1.str();
-					ss2 << (space_rect.ymin + center_height + expand_height);
-					y_min = ss2.str();
-					ss3 << (space_rect.xmin + center_width + pos_imgROI.cols - expand_width);
-					x_max = ss3.str();
-					ss4 << (space_rect.ymin + center_height + pos_imgROI.rows - expand_height);
-					y_max = ss4.str();
+					if (pos_imgROI.cols > (space_rect.xmax - space_rect.xmin) || pos_imgROI.rows > (space_rect.ymax - space_rect.ymin)){
+						reduce_basic_ratio = max(1.0 * pos_imgROI.cols / (space_rect.xmax - space_rect.xmin), 1.0*pos_imgROI.rows / (space_rect.ymax - space_rect.ymin));
+						Size ResImgSiz = Size(pos_imgROI.cols / reduce_basic_ratio*reduce_extra_ratio, pos_imgROI.rows / reduce_basic_ratio*reduce_extra_ratio);
+						resize(pos_imgROI, pos_imgROI, ResImgSiz, CV_INTER_CUBIC);
+						is_reduced = true;
+					}
+
+					/////////////////////////PS并存输出图片至所选空区域的正中间/////////////////////////////////
+					center_width = (space_rect.xmin + space_rect.xmax) / 2 - (space_rect.xmin + space_rect.xmin + pos_imgROI.cols) / 2;
+					center_height = (space_rect.ymin + space_rect.ymax) / 2 - (space_rect.ymin + space_rect.ymin + pos_imgROI.rows) / 2;
+
+					cout << "NEG-PICTURE" << nega_filename[i] << "---is ready" << endl;
+
+
+					pos_imgROI.copyTo(nega_img(Rect(space_rect.xmin + center_width, space_rect.ymin + center_height, pos_imgROI.cols, pos_imgROI.rows)));
+					nega_pic_file_path = nega_strength_save_pic_dir + '/' + nega_filename[i] + "-negpos" + SIZE_PIC;
+					imwrite(nega_pic_file_path, nega_img);
+
+					/////////////////////////提取xml完整名，写入xml需要/////////////////////////////////
+					nega_xml_file_path = nega_strength_save_xml_dir + '/' + nega_filename[i] + "-negpos" + ".xml";
+					nega_xml_file_path.copy(nega_xml, nega_xml_file_path.size(), 0);
+					*(nega_xml + nega_xml_file_path.size()) = '\0';
+					nega_xml_p = nega_xml;
+
+					/////////////////////////提取图片完整名，写入xml需要//////////////////////////////
+					nega_pic_file_path = nega_filename[i] + "-negpos" + SIZE_PIC;
+					nega_pic_file_path.copy(nega_pic, nega_pic_file_path.size(), 0);
+					*(nega_pic + nega_pic_file_path.size()) = '\0';
+					nega_pic_p = nega_pic;
+
+
+					//////////////////////////将坐标从int类型转化为string类型，写入xml需要///////////////////////////////
+					stringstream ss1, ss2, ss3, ss4;
+					string x_min;
+					string y_min;
+					string x_max;
+					string y_max;
+					if (is_reduced){
+						ss1 << (space_rect.xmin + center_width + expand_width / reduce_basic_ratio * reduce_extra_ratio);
+						x_min = ss1.str();
+						ss2 << (space_rect.ymin + center_height + expand_height / reduce_basic_ratio * reduce_extra_ratio);
+						y_min = ss2.str();
+						ss3 << (space_rect.xmin + center_width + pos_imgROI.cols - expand_width / reduce_basic_ratio * reduce_extra_ratio);
+						x_max = ss3.str();
+						ss4 << (space_rect.ymin + center_height + pos_imgROI.rows - expand_height / reduce_basic_ratio * reduce_extra_ratio);
+						y_max = ss4.str();
+					}
+					else{
+						ss1 << (space_rect.xmin + center_width + expand_width);
+						x_min = ss1.str();
+						ss2 << (space_rect.ymin + center_height + expand_height);
+						y_min = ss2.str();
+						ss3 << (space_rect.xmin + center_width + pos_imgROI.cols - expand_width);
+						x_max = ss3.str();
+						ss4 << (space_rect.ymin + center_height + pos_imgROI.rows - expand_height);
+						y_max = ss4.str();
+					}
+
+					//////////////////////////写入xml///////////////////////////////
+					createXML(nega_xml_p, nega_pic_p, x_min, y_min, x_max, y_max);
+					cout << nega_filename[i] << "---has been finished" << endl;
 				}
-
-				//////////////////////////写入xml///////////////////////////////
-				createXML(nega_xml_p, nega_pic_p, x_min, y_min, x_max, y_max);
-				cout << nega_filename[i] << endl << "has been finished" << endl;
-
-
-
+			}//if (CheckOnly(nega_xml_p) == true)
+			else{
+				cout << nega_pic_file_path << "---has two objects,skip this negative sample" << endl;
 			}
-		}
-		else
-		{
-			cout << " has two objects,skip this negative sample" << endl;;
-		}
 
-	}
+		}//for (int i = 0; i < nega_filename.size(); i++)
+		cout << dirname[index] << "---DONE" << endl;
+	}//for (int index = 0; index < dirname.size(); index++)
 
+	cout << "===================END========================" << endl;
 
-	//system("pause");
+	system("pause");
 	return 0;
 }
